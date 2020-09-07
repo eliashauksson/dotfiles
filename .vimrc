@@ -9,9 +9,10 @@ Plug 'Yggdroot/indentLine'
 Plug 'junegunn/goyo.vim'
 Plug 'junegunn/limelight.vim'
 Plug 'dart-lang/dart-vim-plugin'
-Plug 'thosakwe/vim-flutter'
 Plug 'natebosch/vim-lsc'
 Plug 'natebosch/vim-lsc-dart'
+Plug 'thosakwe/vim-flutter'
+Plug 'maksimr/vim-jsbeautify'
 call plug#end()
 
 filetype plugin indent on
@@ -35,6 +36,7 @@ nnoremap <C-H> <C-W><C-H>
 nnoremap <C-G> :Goyo<CR>:Limelight!!<CR>
 
 autocmd BufWritePre *.dart :DartFmt
+autocmd BufWritePre *.html :call HtmlBeautify()
 
 autocmd FileType vim,sh,py set tabstop=4 softtabstop=4 shiftwidth=4
 autocmd FileType html,css,dart,yaml set tabstop=2 softtabstop=2 shiftwidth=2
