@@ -4,22 +4,28 @@ let g:python3_host_prog='~/Development/anaconda3/envs/pynvim/bin/python'
 call plug#begin(g:plugged_home)
 Plug 'arcticicestudio/nord-vim'
 Plug 'itchyny/lightline.vim'
-Plug 'google/yapf'
-Plug 'jiangmiao/auto-pairs'
-Plug 'w0rp/ale'
+
 Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
-Plug 'deoplete-plugins/deoplete-jedi'
+Plug 'zchee/deoplete-jedi'
+
+Plug 'sbdchd/neoformat'
+Plug 'w0rp/ale'
+
+Plug 'jiangmiao/auto-pairs'
+
+Plug 'scrooloose/nerdcommenter'
+
+Plug 'guns/vim-clojure-highlight'
+Plug 'guns/vim-clojure-static'
+Plug 'luochen1990/rainbow'
+Plug 'Olical/conjure'
 call plug#end()
 
 filetype plugin indent on
 
 let mapleader = ','
+let maplocalleader = ','
 
-if has('termguicolors')
-	set termguicolors
-endif
-
-colorscheme nord
 set number
 set noshowmode
 set noswapfile
@@ -28,17 +34,19 @@ set title
 set splitbelow
 set splitright
 
-set shiftwidth=4
-set softtabstop=4
-set tabstop=4
-set expandtab
+colorscheme nord
+let g:lightline = {
+	\ 'colorscheme': 'nord',
+	\ }
+let g:rainbow_active = 1
+let g:rainbow_conf = {
+\	'separately': {
+\		'*': 0,
+\		'clojure': {}
+\	}
+\ }
 
-au BufWritePre *.py 0,$!yapf
-
-au FileType python setl sw=4 sts=4 ts=4
-au FileType yaml setl sw=2 sts=2 ts=2
-
-nmap <Leader>b :buffers<CR>:buffer
+nmap <Leader>bf :buffers<CR>:buffer
 
 nmap <C-j> <C-w><C-j>
 nmap <C-k> <C-w><C-k>
@@ -58,24 +66,18 @@ nmap <M-k> 3<C-w>+
 nmap <M-l> 3<C-w>>
 nmap <M-h> 3<C-w><
 
-tmap <Esc> <C-\><C-n>  
+au FileType python,vim setl sw=4 sts=4 ts=4
 
-let g:lightline = {
-	\ 'colorscheme': 'nord',
-    \ 'active': {
-    \   'left': [ [ 'mode', 'paste' ],
-    \             [ 'cocstatus', 'readonly', 'filename', 'modified' ] ]
-    \ },
-    \ 'component_function': {
-    \   'cocstatus': 'coc#status'
-    \ },
-    \ }
+let g:deoplete#enable_at_startup = 1
+
+au BufWritePre *.py Neoformat
 
 let g:ale_lint_on_enter = 0
 let g:ale_lint_on_text_changed = 'never'
 let g:ale_echo_msg_error_str = 'E'
 let g:ale_echo_msg_warning_str = 'W'
 let g:ale_echo_msg_format = '[%linter%] %s [%severity%]'
-let g:ale_linters = {'python': ['flake8']}
-
-let g:deoplete#enable_at_startup = 1
+let g:ale_linters = {
+	\ 'python': ['flake8'],
+	\ 'clojure': ['clj-kondo', 'joker']
+	\ }
