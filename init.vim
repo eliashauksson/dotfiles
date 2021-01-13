@@ -15,6 +15,11 @@ Plug 'jiangmiao/auto-pairs'
 
 Plug 'scrooloose/nerdcommenter'
 
+Plug 'godlygeek/tabular'
+Plug 'elzr/vim-json'
+Plug 'plasticboy/vim-markdown'
+Plug 'iamcco/markdown-preview.nvim', { 'do': { -> mkdp#util#install() } }
+
 Plug 'guns/vim-clojure-highlight'
 Plug 'guns/vim-clojure-static'
 Plug 'luochen1990/rainbow'
@@ -30,6 +35,9 @@ set number
 set noshowmode
 set noswapfile
 set title
+
+set textwidth=80
+set colorcolumn=+1
 
 set splitbelow
 set splitright
@@ -66,7 +74,13 @@ nmap <M-k> 3<C-w>+
 nmap <M-l> 3<C-w>>
 nmap <M-h> 3<C-w><
 
-au FileType python,vim setl sw=4 sts=4 ts=4
+let g:vim_markdown_folding_disabled = 1
+let g:vim_markdown_conceal = 0
+let g:tex_conceal = ""
+let g:vim_markdown_math = 1
+let g:mkdp_auto_close = 0
+
+au FileType python,vim,markdown setl sw=4 sts=4 ts=4
 
 let g:deoplete#enable_at_startup = 1
 
