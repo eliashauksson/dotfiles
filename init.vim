@@ -12,7 +12,6 @@ Plug 'sbdchd/neoformat'
 Plug 'w0rp/ale'
 
 Plug 'jiangmiao/auto-pairs'
-
 Plug 'scrooloose/nerdcommenter'
 
 Plug 'godlygeek/tabular'
@@ -71,10 +70,10 @@ tmap <C-k> <C-\><C-n><C-w><C-k>
 tmap <C-l> <C-\><C-n><C-w><C-l>
 tmap <C-h> <C-\><C-n><C-w><C-h>
 
-nmap <M-j> 3<C-w>-
-nmap <M-k> 3<C-w>+
-nmap <M-l> 3<C-w>>
-nmap <M-h> 3<C-w><
+nmap <S-j> 3<C-w>-
+nmap <S-k> 3<C-w>+
+nmap <S-l> 3<C-w>>
+nmap <S-h> 3<C-w><
 
 let g:vim_markdown_folding_disabled = 1
 let g:vim_markdown_conceal = 0
@@ -82,7 +81,9 @@ let g:tex_conceal = ""
 let g:vim_markdown_math = 1
 let g:mkdp_auto_close = 0
 
-au FileType python,vim,markdown setl sw=4 sts=4 ts=4
+set sw=4 sts=4 ts=4
+
+au FileType python,vim,markdown,conf setl sw=4 sts=4 ts=4
 au FileType tex,yaml setl sw=2 sts=2 ts=2
 
 let g:deoplete#enable_at_startup = 1
