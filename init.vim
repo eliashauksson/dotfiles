@@ -2,7 +2,7 @@ let g:plugged_home = '~/.local/share/nvim/plugged'
 let g:python3_host_prog='~/Development/anaconda3/envs/pynvim/bin/python'
 
 call plug#begin(g:plugged_home)
-Plug 'arcticicestudio/nord-vim'
+Plug 'morhetz/gruvbox'
 Plug 'itchyny/lightline.vim'
 
 Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
@@ -19,6 +19,8 @@ Plug 'godlygeek/tabular'
 Plug 'elzr/vim-json'
 Plug 'plasticboy/vim-markdown'
 Plug 'iamcco/markdown-preview.nvim', { 'do': { -> mkdp#util#install() } }
+
+Plug 'lervag/vimtex'
 
 Plug 'guns/vim-clojure-highlight'
 Plug 'guns/vim-clojure-static'
@@ -42,9 +44,9 @@ set colorcolumn=+1
 set splitbelow
 set splitright
 
-colorscheme nord
+colorscheme gruvbox
 let g:lightline = {
-	\ 'colorscheme': 'nord',
+	\ 'colorscheme': 'gruvbox',
 	\ }
 let g:rainbow_active = 1
 let g:rainbow_conf = {
@@ -81,8 +83,12 @@ let g:vim_markdown_math = 1
 let g:mkdp_auto_close = 0
 
 au FileType python,vim,markdown setl sw=4 sts=4 ts=4
+au FileType tex,yaml setl sw=2 sts=2 ts=2
 
 let g:deoplete#enable_at_startup = 1
+call deoplete#custom#var('omni', 'input_patterns', {
+	\ 'tex': g:vimtex#re#deoplete
+	\ })
 
 au BufWritePre *.py Neoformat
 
