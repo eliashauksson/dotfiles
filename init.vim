@@ -68,7 +68,7 @@ let g:rainbow_active = 0
 
 set sw=4 sts=4 ts=4
 au FileType python,vim,markdown setl sw=4 sts=4 ts=4
-au FileType yaml,tex setl sw=2 sts=2 ts=2
+au FileType yaml,tex,clojure,html,css,javascript,json setl sw=2 sts=2 ts=2
 
 inoremap <expr><tab> pumvisible() ? "\<c-n>" : "\<tab>"
 
