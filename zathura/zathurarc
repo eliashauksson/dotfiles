@@ -1,8 +1,0 @@
-set pages-per-row 1
-set scroll-page-aware "true"
-set adjust-open "width"
-
-set recolor true
-set recolor-reverse-video "true"
-set recolor-lightcolor "#2e3440"
-set recolor-darkcolor "#eceff4"
