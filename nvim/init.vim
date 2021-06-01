@@ -1,40 +1,19 @@
-let g:plugged_home = '~/.local/share/nvim/plugged'
-
-call plug#begin(g:plugged_home)
-Plug 'arcticicestudio/nord-vim'
+call plug#begin('~/.local/share/nvim/plugged')
+Plug 'morhetz/gruvbox'
 Plug 'itchyny/lightline.vim'
 Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
-Plug 'zchee/deoplete-jedi'
-Plug 'w0rp/ale'
-Plug 'sbdchd/neoformat'
-Plug 'vim-python/python-syntax'
-Plug 'Olical/conjure'
-Plug 'luochen1990/rainbow'
-Plug 'guns/vim-clojure-highlight'
-Plug 'guns/vim-clojure-static'
+Plug 'deoplete-plugins/deoplete-jedi'
 Plug 'jiangmiao/auto-pairs'
-Plug 'scrooloose/nerdcommenter'
-Plug 'junegunn/goyo.vim'
-Plug 'junegunn/limelight.vim'
-Plug 'godlygeek/tabular'
-Plug 'plasticboy/vim-markdown'
-Plug 'iamcco/markdown-preview.nvim', { 'do': { -> mkdp#util#install() } }
-Plug 'mattn/emmet-vim'
+Plug 'preservim/nerdcommenter'
+Plug 'sbdchd/neoformat'
+Plug 'neomake/neomake'
 Plug 'lervag/vimtex'
-Plug 'sirver/ultisnips'
-Plug 'KeitaNakamura/tex-conceal.vim', {'for': 'tex'}
+Plug 'SirVer/ultisnips'
 call plug#end()
 
 filetype plugin indent on
 
 let mapleader = ','
-let maplocalleader = ','
-let g:user_emmet_leader_key = ','
-
-autocmd FileType txt,tex setlocal spell
-set spelllang=de,en_gb
-imap <C-f> <c-g>u<Esc>[s1z=`]a<c-g>u
-nmap <C-f> [s1z=<C-o>
 
 set number
 set noshowmode
@@ -43,73 +22,44 @@ set noswapfile
 set splitbelow
 set splitright
 
-colorscheme nord
-
+" Colorscheme
+colorscheme gruvbox
 let g:lightline = {
-\	'colorscheme': 'nord',
-\}
+	\ 'colorscheme': 'gruvbox',
+	\}
 
-autocmd! User GoyoEnter Limelight
-autocmd! User GoyoLeave Limelight!
-
-let g:limelight_conceal_ctermfg = 240
-let g:vim_markdown_folding_disabled = 1
-let g:mkdp_auto_close = 0
-
+" Autocompletion
 let g:deoplete#enable_at_startup = 1
+let g:deoplete#sources#jedi#show_docstring = 1
+au InsertLeave,CompleteDone * if pumvisible() == 0 | pclose | endif
 call deoplete#custom#var('omni', 'input_patterns', {
-\	'tex': g:vimtex#re#deoplete
-\})
+	\ 'tex': g:vimtex#re#deoplete
+	\})
 
+" Python
+au BufWritePre *.py Neoformat
+let g:neomake_python_enabled_makers = ['flake8']
+call neomake#configure#automake('nrwi', 500)
+
+" Latex
 let g:tex_flavor = 'latex'
 let g:vimtex_view_method = 'zathura'
 let g:vimtex_quickfix_mode = 0
-autocmd FileType tex set conceallevel=2
+set conceallevel=1
 let g:tex_conceal = 'abdmg'
-autocmd FileType tex hi Conceal ctermbg=NONE
+au BufWritePre *.tex call vimtex#toc#refresh()
 
+" Snippets
 let g:UltiSnipsExpandTrigger = '<tab>'
 let g:UltiSnipsJumpForwardTrigger = '<tab>'
 let g:UltiSnipsJumpBackwardTrigger = '<s-tab>'
-let g:UltiSnipsSnippetDirectories = ['UltiSnips', 'my-snippets']
 
-let g:ale_lint_on_enter = 0
-let g:ale_lint_on_text_changed = 'never'
-let g:ale_echo_msg_error_str = 'E'
-let g:ale_echo_msg_warning_str = 'W'
-let g:ale_echo_msg_format = '[%linter%] %s [%severity%]'
-let g:ale_linters = {
-\	'python': ['flake8'],
-\	'clojure': ['clj-kondo'],
-\	'tex': ['proselint']
-\}
-
-au BufWritePre *.py Neoformat
-let g:python_highlight_all = 1
-let g:rainbow_active = 0
-
+" Indentation
 set sw=4 sts=4 ts=4
-au FileType yaml,tex,clojure,html,css,javascript,json setl sw=2 sts=2 ts=2
+au FileType yaml,tex,html,css,javascript,json setl sw=2 sts=2 ts=2
 
-inoremap <expr><tab> pumvisible() ? "\<c-n>" : "\<tab>"
-
-nmap <Leader>bf :buffers<CR>:buffer
-nmap <Leader>r :RainbowToggle<CR>
-
+" Navigation
 nmap <C-j> <C-w><C-j>
 nmap <C-k> <C-w><C-k>
 nmap <C-l> <C-w><C-l>
 nmap <C-h> <C-w><C-h>
-imap <C-j> <C-\><C-n><C-w><C-j>
-imap <C-k> <C-\><C-n><C-w><C-k>
-imap <C-l> <C-\><C-n><C-w><C-l>
-imap <C-h> <C-\><C-n><C-w><C-h>
-tmap <C-j> <C-\><C-n><C-w><C-j>
-tmap <C-k> <C-\><C-n><C-w><C-k>
-tmap <C-l> <C-\><C-n><C-w><C-l>
-tmap <C-h> <C-\><C-n><C-w><C-h>
-
-nmap <S-j> 3<C-w>-
-nmap <S-k> 3<C-w>+
-nmap <S-l> 3<C-w>>
-nmap <S-h> 3<C-w><
