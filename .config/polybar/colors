@@ -1,0 +1,16 @@
+[colors]
+bg = #2e3440
+bg-alt = #3b4252
+fg = #eceff4
+fg-alt = #e5e9f0
+
+blue = #81a1c1
+cyan = #88c0d0
+green = #a3b38c
+orange = #d08770
+purple = #b48ead
+red = #bf616a
+yellow = #ebcb8b
+
+black = #000
+white = #fff

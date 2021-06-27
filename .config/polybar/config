@@ -1,0 +1,82 @@
+###################################################
+###               Polybar Config                ###
+###################################################
+
+include-file = $HOME/.config/polybar/colors
+
+##################### Mainbar #####################
+
+[bar/mainbar]
+
+override-redirect = true
+wm-restack = bspwm
+
+fixed-center = true
+
+width = 100%
+height = 30
+padding-right = 2
+
+line-size = 2
+
+font-0 = "Iosevka:size=11;0"
+font-1 = "Iosevka Nerd Font:size=13;0"
+
+background = ${colors.bg}
+foreground = ${colors.fg}
+
+module-margin = 1
+
+modules-left = bspwm
+modules-center = time
+modules-right = brightness audio bluetooth wifi ethernet battery
+
+##################### Modules #####################
+
+[module/bspwm]
+type = internal/bspwm
+
+label-focused-background = ${colors.bg-alt}
+label-focused-foreground = ${colors.fg-alt}
+label-focused-underline = ${colors.red}
+label-focused = " %name% "
+
+label-occupied-underline = ${colors.fg}
+label-occupied = " %name% "
+
+label-empty = " %name% "
+
+[module/time]
+type = custom/script
+exec = date +"%H:%M"
+interval = 60
+
+[module/battery]
+type = custom/script
+exec = $HOME/.config/polybar/scripts/battery.sh
+interval = 10
+
+[module/wifi]
+type = custom/script
+exec = $HOME/.config/polybar/scripts/wifi.sh
+interval = 1
+
+[module/ethernet]
+type = custom/script
+exec = $HOME/.config/polybar/scripts/ethernet.sh
+interval = 1
+
+[module/bluetooth]
+type = custom/script
+exec = $HOME/.config/polybar/scripts/bluetooth.sh
+interval = 1
+
+[module/audio]
+type = custom/script
+exec = $HOME/.config/polybar/scripts/audio.sh
+interval = 1
+
+[module/brightness]
+type = custom/script
+exec = echo " $(xbacklight | awk '{printf("%d"), $0}')%"
+interval = 1
