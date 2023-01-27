@@ -1,0 +1,8 @@
+*~
+*#
+
+config/emacs/elpa/
+config/emacs/auto-save-list/
+config/emacs/elpy/
+config/emacs/eshell/
+config/emacs/transient/
