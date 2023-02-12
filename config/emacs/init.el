@@ -37,7 +37,7 @@
 ;; Add the theme directory to path
 (add-to-list 'custom-theme-load-path "~/.config/emacs/themes")
 (load-theme 'catppuccin t)
-(setq catppuccin-flavor 'macchiato)
+(setq catppuccin-flavor 'latte)
 (catppuccin-reload)
 
 ;; Change to Iosevka font
@@ -93,8 +93,8 @@
   :hook
   (elpy-mode . (lambda () (highlight-indentation-mode -1))))
 
-;; setup magit
-(use-package magit)
+;; setup org-mode
+(use-package org)
 
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
@@ -102,7 +102,7 @@
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  '(package-selected-packages
-   '(magit elpy cider clojure-mode rainbow-delimiters which-key counsel use-package)))
+   '(auctex magit elpy cider clojure-mode rainbow-delimiters which-key counsel use-package)))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
