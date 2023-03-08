@@ -8,7 +8,7 @@ super + Return
 
 # terminal
 super + t
-      kitty
+      kitty --single-instance --listen-on="unix:/tmp/kitty.sock"
 
 # web browser
 super + b
@@ -23,7 +23,7 @@ super + Escape
 	pkill -USR1 -x sxhkd
 
 super + c
-      /usr/bin/python $HOME/dev/scripts/change_theme.py
+      $HOME/dev/scripts/toggle-theme.clj
 
 
 #

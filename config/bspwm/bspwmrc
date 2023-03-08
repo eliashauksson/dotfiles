@@ -3,20 +3,26 @@ pgrep -x sxhkd > /dev/null || sxhkd &
 
 nitrogen --restore &
 
-bspc config border_width         3
+bspc config border_width        2
 bspc config window_gap          25
 bspc config top_padding         40
 
 bspc config split_ratio          0.52
 
-theme="latte"
+COLORFILE="$HOME/.colortheme"
 
-if [ "$theme" == "latte" ]; then
-    normal_border_color="#dce0e8"
-    focused_border_color="#1e66f5"
+if [[ -f "$COLORFILE" ]]; then
+    theme=$(cat "$COLORFILE")
 else
-    normal_border_color="#181926"
-    focused_border_color="#8aadf4"
+    theme="nano-light"
+fi
+
+if [ "$theme" == "nano-light" ]; then
+    normal_border_color="#37474F"
+    focused_border_color="#FFAB91"
+else
+    normal_border_color="#ECEFF4"
+    focused_border_color="#D08770"
 fi
 
 bspc config normal_border_color "$normal_border_color"

@@ -1,12 +1,12 @@
 * {
-    font:   "Iosevka Nerd Font Medium 14";
+    font:   "Iosevka Nerd Font 14";
 
-    bg0:     #FFFFFF;
-    bg1:     #FAFAFA;
-    fg0:     #37474F;
+    bg0:     #2E3440;
+    bg1:     #434C5E;
+    fg0:     #ECEFF4;
 
-    accent-color:     #673AB7;
-    urgent-color:     #FFAB91;
+    accent-color:     #81A1C1;
+    urgent-color:     #D08770;
 
     background-color:   transparent;
     text-color:         @fg0;
@@ -20,6 +20,8 @@ window {
     location:   center;
     width:      480;
 
+    border: 2px;
+    border-color: @fg0;
     background-color:   @bg0;
 }
 
@@ -80,6 +82,7 @@ element selected {
 }
 
 element selected normal, element selected active {
+    text-color: @bg0;
     background-color:   @accent-color;
 }
 
