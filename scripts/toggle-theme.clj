@@ -42,7 +42,10 @@
     (shell "kitty" "@" "--to" "unix:/tmp/kitty.sock"
            "set-colors" "--all" "--configured"
            (str kitty-theme-dir (get-next-theme) ".conf"))
-    (kitty-manual-background-override)))
+    (kitty-manual-background-override))
+  (fs/delete-if-exists (str kitty-theme-dir "current-theme.conf"))
+  (fs/copy (str kitty-theme-dir (get-next-theme) ".conf")
+           (str kitty-theme-dir "current-theme.conf")))
 
 (defn toggle-rofi-theme []
   (fs/delete-if-exists (str rofi-theme-dir "config.rasi"))
