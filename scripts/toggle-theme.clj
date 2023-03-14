@@ -7,6 +7,11 @@
 (def light-theme "nano-light")
 (def default-theme light-theme)
 
+(def dark-bg "#2E3440")
+(def dark-fg "#ECEFF4")
+(def light-bg "#FFFFFF")
+(def light-fg "#37474F")
+
 (def color-theme-file (str (System/getenv "HOME") "/.colortheme"))
 (def kitty-theme-dir (str (System/getenv "HOME") "/.config/kitty/themes/"))
 (def rofi-theme-dir (str (System/getenv "HOME") "/.config/rofi/"))
@@ -31,18 +36,20 @@
 (defn toggle-emacs-theme []
   (shell "emacsclient" "--eval" (str "(" (get-next-theme) ")")))
 
-(defn kitty-manual-background-override []
-  (let [bg-color (if (= (get-next-theme) light-theme) "#FFFFFF" "#2E3440")]
+(defn kitty-manual-override []
+  (let [bg-color (if (= (get-next-theme) light-theme) light-bg dark-bg)
+        fg-color (if (= (get-next-theme) light-theme) light-fg dark-fg)]
     (shell "kitty" "@" "--to" "unix:/tmp/kitty.sock"
            "set-colors" "--all" "--configured"
-           (str "background=" bg-color))))
+           (str "background=" bg-color) (str "foreground=" fg-color)
+           "cursor=none")))
 
 (defn toggle-kitty-theme []
   (when (fs/exists? "/tmp/kitty.sock")
     (shell "kitty" "@" "--to" "unix:/tmp/kitty.sock"
            "set-colors" "--all" "--configured"
            (str kitty-theme-dir (get-next-theme) ".conf"))
-    (kitty-manual-background-override))
+    (kitty-manual-override))
   (fs/delete-if-exists (str kitty-theme-dir "current-theme.conf"))
   (fs/copy (str kitty-theme-dir (get-next-theme) ".conf")
            (str kitty-theme-dir "current-theme.conf")))
