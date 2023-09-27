@@ -1,0 +1,47 @@
+#!/usr/local/bin/bb
+
+(def config
+  {:bashrc (str (System/getenv "HOME") "/.bashrc")
+   :gnome-light-theme "Pop"
+   :gnome-dark-theme "Pop-dark"
+   :kitty-config (str (System/getenv "HOME") "/.config/kitty/kitty.conf")
+   :kitty-light-theme "catppuccin-latte"
+   :kitty-dark-theme "catppuccin-mocha"})
+
+(defn get-global-theme []
+  (or (System/getenv "THEME")
+      (second (some #(re-find #"^export THEME=(.+)$" %)
+                    (clojure.string/split-lines (slurp (:bashrc config)))))
+      (do (spit (:bashrc config)
+                (str "\nexport THEME=LIGHT\n") :append true)
+          "LIGHT")))
+
+(defn toggle-global-theme []
+  (let [new-theme (if (= (get-global-theme) "LIGHT") "DARK" "LIGHT")]
+    (shell/sh "sed" "-i" (str "/^export THEME=/c\\export THEME=" new-theme) (:bashrc config))
+    new-theme))
+
+(defn toggle-gnome-theme [theme]
+  (let [new-theme (if (= theme "LIGHT") (:gnome-light-theme config) (:gnome-dark-theme config))]
+    (shell/sh "gsettings" "set" "org.gnome.desktop.interface" "gtk-theme" new-theme)))
+
+(defn toggle-emacs-theme [theme]
+  (shell/sh "emacsclient" "-e" "(my-toggle-theme-function)"))
+
+(defn load-kitty-theme [theme]
+    (shell/sh "kitty" "@" "--to" "unix:/tmp/kitty.sock" "set-colors" "-a"
+            (str (System/getenv "HOME") "/.config/kitty/themes/" theme ".conf")))
+
+(defn toggle-kitty-theme [theme]
+  (let [new-theme (if (= theme "LIGHT") (:kitty-light-theme config) (:kitty-dark-theme config))]
+    (shell/sh "sed" "-i" (str "/^include themes\\/.*\\.conf/c\\include themes/" new-theme ".conf")
+              (:kitty-config config))
+    (load-kitty-theme new-theme)))
+
+(defn main []
+  (let [theme (toggle-global-theme)]
+    (toggle-gnome-theme theme)
+    (toggle-emacs-theme theme)
+    (toggle-kitty-theme theme)))
+
+(main)
