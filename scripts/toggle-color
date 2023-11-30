@@ -6,7 +6,10 @@
    :gnome-dark-theme "Pop-dark"
    :kitty-config (str (System/getenv "HOME") "/.config/kitty/kitty.conf")
    :kitty-light-theme "catppuccin-latte"
-   :kitty-dark-theme "catppuccin-mocha"})
+   :kitty-dark-theme "catppuccin-mocha"
+   :nvim-config (str (System/getenv "HOME") "/.config/nvim/lua/colorscheme.lua")
+   :nvim-light-theme "latte"
+   :nvim-dark-theme "mocha"})
 
 (defn get-global-theme []
   (or (System/getenv "THEME")
@@ -38,10 +41,15 @@
               (:kitty-config config))
     (load-kitty-theme new-theme)))
 
+(defn toggle-nvim-theme [theme]
+  (let [new-theme (if (= theme "LIGHT") (:nvim-light-theme config) (:nvim-dark-theme config))]
+    (shell/sh "sed" "-i" (str "s/flavour = '.*'/flavour = '" new-theme "'/") (:nvim-config config))))
+
 (defn main []
   (let [theme (toggle-global-theme)]
     (toggle-gnome-theme theme)
     (toggle-emacs-theme theme)
-    (toggle-kitty-theme theme)))
+    (toggle-kitty-theme theme)
+    (toggle-nvim-theme theme)))
 
 (main)
