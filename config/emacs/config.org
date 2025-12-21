@@ -2,901 +2,543 @@
 #+AUTHOR: Elías Hauksson
 
 #+PROPERTY: header-args:emacs-lisp :tangle config.el
-#+PROPERTY: header-args :results silent
+#+PROPERTY: header-args :result silent
 
 * Bootstrap (init.el)
-This code lives in =init.el= and must be executed *before* this Org file is loaded. It is intentionally **not tangled** from this document.
 
-#+begin_quote
-⚠ This code must be copied into =init.el=.
-It is shown here for documentation purposes only and is not tangled.
-#+end_quote
+#+BEGIN_SRC emacs-lisp :tangle no
+    ;;; init.el -*- lexical-binding: t -*-
 
-#+begin_src emacs-lisp :tangle no
-;;; init.el -*- lexical-binding: t -*-
+  ;; Disable default package management
+  (setq package-enable-at-startup nil)
 
-;; Disable default package management
-(setq package-enable-at-startup nil)
+  ;; Bootstrap straight.el
+  (defvar bootstrap-version)
+  (let ((bootstrap-file
+         (expand-file-name "straight/repos/straight.el/bootstrap.el"
+  			 user-emacs-directory))
+        (bootstrap-version 7))
+    (unless (file-exists-p bootstrap-file)
+      (with-current-buffer
+  	(url-retrieve-synchronously
+  	 "https://raw.githubusercontent.com/radian-software/straight.el/develop/install.el"
+  	 'silent 'inhibit-cookies)
+        (goto-char (point-max))
+        (eval-print-last-sexp)))
+    (load bootstrap-file nil 'nomessage))
 
-;; Bootstrap straight.el
-(defvar bootstrap-version)
-(let ((bootstrap-file
-       (expand-file-name "straight/repos/straight.el/bootstrap.el"
-			 use-emacs-directory))
-      (bootstrap-version 7))
-  (unless (file-exists-p bootstrap-file)
-    (with-current-buffer
-	(url-retrieve-synchronously
-	 "https://raw.githubusercontent.com/radian-software/straight.el/develop/install.el"
-	 'silent 'inhibit-cookies)
-      (goto-char (point-max))
-      (eval-print-last-sexp)))
-  (load bootstrap-file nil 'nomessage))
+  ;; Install and load Org
+  (straight-use-package 'org)
 
-;; Install and load Org
-(straight-use-package 'org)
-
-;; Now load the literate config
-(org-babel-load-file
- (expand-file-name "config.org" user-emacs-directory))
-#+end_src
-
-* Early Init
-This section runs **before Emacs fully starts**. Ideal for startup performance tweaks and frame/UI optimizations.
-We start by deferring garbage collection to speed up startup.
-
-#+begin_src emacs-lisp :tangle early-init.el
-;;; early-init.el -*- lexical-binding: t -*-
-
-(setq gc-cons-percentage 0.6)
-#+end_src
-
-Next, we improve throughput for LSP and subprocess communication.
-
-#+begin_src emacs-lisp :tangle early-init.el
-(setq read-process-output-max (* 1024 1024)) ;; 1MB
-#+end_src
-
-We also prefer loading new compiled files to avoid stale .elc issues.
-
-#+begin_src emacs-lisp :tangle early-init.el
-(setq load-prefer-newer t)
-#+end_src
-
-Prevent `package.el` from initializing at startup
-
-#+begin_src emacs-lisp :tangle early-init.el
-(setq package-enable-at-startup nil)
-#+end_src
-
-To prevent frame flicker, we disable the menu-bar, tool-bar, and vertical scroll bars early.
-
-#+begin_src emacs-lisp :tangle early-init.el
-(setq default-frame-alist
-      '((menu-bar-lines . 0)
-	(tool-bar-lines . 0)
-	(vertical-scroll-bars . nil)))
-#+end_src
-
-Finally, we temporarily disable expensive file handler checks during startup.
-
-#+begin_src emacs-lisp :tangle early-init.el
-(defvar file-name-handler-alist-old file-name-handler-alist)
-(setq file-name-handler-alist nil)
-(add-hook 'emacs-startup-hook
-	  (lambda ()
-	    (setq file-name-handler-alist file-name-handler-alist-old)))
-#+end_src
-
-* Basic Settings
-These settings are applied **after startup** to clean the scratch buffer, reset GC, and ensure UTF-8 encoding.
-First we prevent startup message and clear the scratch buffer
-
-#+begin_src emacs-lisp
-(setq inhibit-startup-message t
-      inhibit-startup-echo-area-message t
-      inhibit-startup-screen t
-      initial-scratch-message nil
-      initial-major-mode 'fundamental-mode)
-#+end_src
-
-No bell
-
-#+begin_src emacs-lisp
-(setq ring-bell-function 'ignore)
-#+end_src
-
-  We also reset the GC to a normal value after startup
-
-#+begin_src emacs-lisp
-(add-hook 'emacs-startup-hook
-          (lambda ()
-            (setq gc-cons-percentage 0.1)))
-#+end_src
-
-Then we ensure UTF-8 encoding everywhere
-
-#+begin_src emacs-lisp
-(prefer-coding-system 'utf-8)
-(set-language-environment "UTF-8")
-(setq default-input-method nil)
-#+end_src
-
-Suppress normal warnings
-#+BEGIN_SRC emacs-lisp
-(setq warning-minimum-level :error)
+  ;; Now load the literate config
+  (org-babel-load-file
+   (expand-file-name "config.org" user-emacs-directory))
 #+END_SRC
 
-Finally we add a small message, which displays the startup time in the echo area
+* Early Init (Startup Infrastructure)
 
-#+begin_src emacs-lisp
-(add-hook 'emacs-startup-hook
-	  (lambda ()
-	    (message "Emacs ready in %.2f seconds"
-		     (float-time (time-subtract after-init-time before-init-time)))))
-#+end_src
+Everything in this section tangles to =early-init.el=.
+It is evaluated before package loading and exists solely to minimize startup time
+and frame initialization overhead.
 
-* General Editing
-Built-In Options
+** Garbage Collection Optimization
 
-#+BEGIN_SRC emacs-lisp
-(delete-selection-mode   t) ;; Replace selected text when yanking
-(global-so-long-mode     t) ;; Mitigate performance for long lines
-(global-visual-line-mode t) ;; Break lines instead of truncating
-(global-auto-revert-mode t) ;; Revert buffers when they change
-(setq-default tab-width  4) ;; Smaller tabs
+Temporarily relax garbage collection limits during startup to reduce pauses,
+then restore conservative defaults once initialization is complete.
+
+#+BEGIN_SRC emacs-lisp :tangle early-init.el
+  (defvar my/gc-cons-threshold (* 16 1024 1024))
+  (defvar my/gc-cons-percentage 0.1)
+
+  (setq gc-cons-threshold most-positive-fixnum
+        gc-cons-percentage 0.6)
+
+  (defun my/restore-gc ()
+    (setq gc-cons-threshold my/gc-cons-threshold
+  	gc-cons-percentage my/gc-cons-percentage))
+
+  (add-hook 'emacs-startup-hook #'my/restore-gc)
 #+END_SRC
 
-Use spaces instead of tabs. But if working on a project that uses tabs, don't mess it up.
+** Prefer Newer Compiled Files
 
-#+BEGIN_SRC emacs-lisp
-(defun infer-indentation-style ()
-  "Default to no tabs, but use tabs if already in project"
-  (let ((space-count (how-many "^  " (point-min) (point-max)))
-	(tab-count   (how-many "^\t" (point-min) (point-max))))
-    (if (> space-count tab-count) (setq-default indent-tabs-mode nil))
-    (if (> tab-count space-count) (setq-default indent-tabs-mode t))))
-
-(setq-default indent-tabs-mode nil)
-(infer-indentation-style)
+#+BEGIN_SRC emacs-lisp :tangle early-init.el
+  (setq load-prefer-newer t)
 #+END_SRC
 
-Make backspace remove whole tab
+** Startup UI Suppression
 
-#+BEGIN_SRC emacs-lisp
-(setq backward-delete-char-untabify-method 'hungry)
+#+BEGIN_SRC emacs-lisp :tangle early-init.el
+  (setq inhibit-startup-screen t
+        inhibit-startup-echo-area-message user-login-name)
+
+  (setq initial-buffer-choice nil
+        inhibit-startup-buffer-menu t
+        inhibit-x-resources t)
+
+  (setq inhibit-splash-screen t)
 #+END_SRC
 
-Better Undo/Redo with undo-fu
+** Scratch Buffer Defaults
 
-#+BEGIN_SRC emacs-lisp
-(use-package undo-fu
-  :straight t
-  :bind
-  (("C-x u" . undo-fu-only-undo)
-   ("C-x r" . undo-fu-only-redo)))
+#+BEGIN_SRC emacs-lisp :tangle early-init.el
+  (setq initial-major-mode 'fundamental-mode
+        initial-scratch-message nil)
 #+END_SRC
 
-* File Management
-Emacs normally creates backup files (`file~`) and auto-save files (`#file#`) in the same folder as your documents.
-To avoid clutter, we can redirect them to a central folder and add some extra features like timestamps and versioning.
+** Frame and UI Chrome
 
-#+begin_src emacs-lisp
-;; Base directory for all temporary Emacs files
-(defvar user-emacs-temp-dir
-  (expand-file-name "tmp/" user-emacs-directory))
-(unless (file-directory-p user-emacs-temp-dir)
-  (make-directory user-emacs-temp-dir t))
-#+end_src
+#+BEGIN_SRC emacs-lisp :tangle early-init.el
+  (push '(menu-bar-lines . 0) default-frame-alist)
+  (setq menu-bar-mode nil)
 
-We can now tell Emacs to put **all backup files** in this folder.
-We'll also enable **versioned backups** so Emacs keeps several old copies, not just the last one.
+  (push '(tool-bar-lines . 0) default-frame-alist)
+  (setq tool-bar-mode nil)
 
-#+begin_src emacs-lisp
-;; Backup files (~) go here, with versioning
-(setq backup-directory-alist `(("." . ,user-emacs-temp-dir))
-      backup-by-copying t       ;; copy instead of rename
-      delete-old-versions t     ;; clean up old backups automatically
-      kept-new-versions 6       ;; keep last 6
-      kept-old-versions 2       ;; keep 2 oldest
-      version-control t)        ;; use versioned backups
-#+end_src
+  (push '(vertical-scroll-bars) default-frame-alist)
+  (push '(horizontal-scroll-bars) default-frame-alist)
 
-Similarly, we redirect **auto-save-files** to the same folder.
-This keeps them out of your project directories and makes Emacs cleaner.
+  (setq scroll-bar-mode nil)
+  (when (fboundp 'horizontal-scroll-bar-mode)
+    (horizontal-scroll-bar-mode -1))
 
-#+begin_src emacs-lisp
-;; Auto-save files (#file#) go here
-(setq auto-save-file-name-transforms
-      `((".*" ,user-emacs-temp-dir t)))
+  (when (bound-and-true-p tooltip-mode)
+    (tooltip-mode -1))
 
-;; Disable lockfiles to avoid .#file clutter
-(setq create-lockfiles nil)
-#+end_src
+  (setq use-file-dialog nil)
+  (setq use-dialog-box nil)
+#+END_SRC
+
+** Disable Built-in Package Manager
+
+#+BEGIN_SRC emacs-lisp :tangle early-init.el
+  (setq package-enable-at-startup nil)
+  (setq package-quickstart nil)
+#+END_SRC
+
+** File Name Handler Deferral
+
+Disable file name handlers during startup to avoid costly remote and archive
+checks while loading core libraries.
+
+#+BEGIN_SRC emacs-lisp :tangle early-init.el
+  (defvar my/file-name-handler-alist file-name-handler-alist)
+
+  (setq file-name-handler-alist nil)
+
+  (add-hook 'emacs-startup-hook
+  	  (lambda ()
+  	    (setq file-name-handler-alist my/file-name-handler-alist)))
+#+END_SRC
+
+* Core Defaults
+
+Global behavioral decisions that apply uniformly across all buffers,
+modes, and workflows.
+
+** Startup Metrics
+
+Emit a concise startup summary in the minibuffer for perfomance regression tracking.
+
+#+BEGIN_SRC emacs-lisp
+  (add-hook 'emacs-startup-hook
+  	  (lambda ()
+  	    (message "Startup: %s | GCs: %d | Files: %d"
+  		     (emacs-init-time)
+  		     gcs-done
+  		     (length load-history))))
+#+END_SRC
+
+** Alerts and Cursor
+
+#+BEGIN_SRC emacs-lisp
+  (setq ring-bell-function #'ignore)
+
+  (blink-cursor-mode -1)
+  (setq-default cursor-type 'bar)
+#+END_SRC
+
+** Disable save and lockfiles
+
+Store backups, auto-saves, and lockfiles in a per-directory .save/ folder
+
+#+BEGIN_SRC emacs-lisp
+  (defun my/ensure-save-dir ()
+    (when buffer-file-name
+      (let* ((file-dir (file-name-directory buffer-file-name))
+             (save-dir (expand-file-name ".save/" file-dir)))
+        (unless (file-directory-p save-dir)
+          (make-directory save-dir t)))))
+
+  (add-hook 'before-save-hook #'my/ensure-save-dir)
+  (add-hook 'auto-save-hook #'my/ensure-save-dir)
+
+  (setq auto-save-visited-file-name t)
+
+  (setq backup-directory-alist
+        '(("." . ".save/")))
+
+  (setq auto-save-file-name-transforms
+        '((".*" ".save/\\&" t)))
+
+  (setq lock-file-name-transforms
+        '((".*" ".save/\\&" t)))
+#+END_SRC
+
+* Editing Defaults
+
+Baseline text-editing behavior independent of programming language,
+major mode, or external package.
+
+** Indentation and Whitespace
+
+Standardize indentation to spaces and make trailing whitespace visible
+to avoid accidental formatting errors.
+
+#+BEGIN_SRC emacs-lisp
+  (setq-default indent-tabs-mode nil
+                tab-width 4
+                show-trailling-whitespace t)
+#+END_SRC
+
+** Parentheses and Structure
+
+#+BEGIN_SRC emacs-lisp
+  (show-paren-mode 1)
+  (setq show-paren-delay 0)
+#+END_SRC
+
+* Navigation and Buffers
+
+Built-in navigation facilities for buffers, scrolling, and positional awareness.
+No third-party packages are introduced here.
+
+** Line Numbers
+
+#+BEGIN_SRC emacs-lisp
+  (add-hook 'prog-mode-hook #'display-line-numbers-mode)
+  (add-hook 'org-mode-hook #'display-line-numbers-mode)
+#+END_SRC
+
+** Scrolling Behavior
+
+#+BEGIN_SRC emacs-lisp
+  (setq scroll-margin 3
+        scroll-conservatively 100
+        scroll-step 1)
+#+END_SRC
+
+** Buffer List
+
+#+BEGIN_SRC emacs-lisp
+  (global-set-key (kbd "C-x C-b") #'ibuffer)
+#+END_SRC
 
 * Package Management
-Integrate `use-package`.
 
-#+begin_src emacs-lisp
-(setq straight-use-package-by-default t)
-(require 'use-package)
-#+end_src
+Infrastructure for installing and configuring third-party packages.
+No user-facing behavior should be defined in this section.
 
-* Visuals
-** Frames & Windows
+** use-package Integration
 
-Add some border around the whole frame
+Integrate =use-package= with =straight.el= so all package declarations
+are declarative, lazy by default, and reproducible.
 
-#+begin_src emacs-lisp
-(add-to-list 'default-frame-alist '(internal-border-width . 16))
-(set-fringe-mode 0)
-(set-face-attribute 'fringe nil :background (face-background 'default))
-#+end_src
+#+BEGIN_SRC emacs-lisp
+  (eval-when-compile (require 'straight))
 
-** Programming-Specific
-Make the cursor non-blinking and bar style
+  (straight-use-package 'use-package)
 
-#+begin_src emacs-lisp
-(blink-cursor-mode 0)
-(setq-default cursor-type 'bar)
-#+end_src
+  (setq straight-use-package-by-default t
+        use-package-verbose t)
 
-Then colorize all matching parentheses and delimiters
+  (require 'use-package)
+#+END_SRC
 
-#+begin_src emacs-lisp
-(use-package rainbow-delimiters
-  :hook ((prog-mode org-mode) . rainbow-delimiters-mode))
-(show-paren-mode t)
-#+end_src
+* Editing (Packages)
+* Completion
 
-Also enable line numbers everywhere except in terminals and org mode
+Minibuffer completion framework, matching style, and candidate ranking.
+This section defines how completion looks and how results are ordered.
 
-#+begin_src emacs-lisp
-(global-display-line-numbers-mode t)
-(setq-default display-line-numbers-width 3)
+** Completion UI (Vertico)
 
-(dolist (mode '(org-mode term-mode vterm-mode shell-mode eshell-mode))
-  (add-hook (intern (concat (symbol-name mode) "-hook"))
-	    (lambda () (display-line-numbers-mode 0))))
-#+end_src
+#+BEGIN_SRC emacs-lisp
+  (use-package vertico
+    :init
+    (setq vertico-cycle t)
+    (vertico-mode 1))
+#+END_SRC
 
-** Fonts & Ligatures
-Set up Iosevka as the main font for Emacs and enable ligatures for programming modes.
+** Completion Matching (Orderless)
 
-Base font size
+#+BEGIN_SRC emacs-lisp
+  (use-package orderless
+    :config
+    (setq completion-styles '(orderless basic)
+          completion-category-defaults nil
+          completion-category-overrides
+          '((file (styles basic partial-completion)))))
+#+END_SRC
 
-#+begin_src emacs-lisp
-(defvar my/font-height 130)
-#+end_src
+** Completion Ranking (Prescient)
 
-Set Iosevka as default and fixed-pitch font
+#+BEGIN_SRC emacs-lisp
+  (use-package prescient
+    :config
+    (prescient-persist-mode 1))
+#+END_SRC
 
-#+begin_src emacs-lisp
-(when (member "Iosevka" (font-family-list))
-  (set-face-attribute 'default nil :font "Iosevka" :height my/font-height)
-  (set-face-attribute 'fixed-pitch nil :family "Iosevka"))
-#+end_src
+** Vertico + Prescient Integration
 
-Define common ligatures and enable them for programming
+#+BEGIN_SRC emacs-lisp
+  (use-package vertico-prescient
+    :after (vertico prescient)
+    :config
+    (vertico-prescient-mode 1))
+#+END_SRC
 
-#+begin_src emacs-lisp
-(defvar ligature-def '("|||>" "<|||" "<==>" "<!--" "####" "~~>" "***" "||=" "||>"
-		       ":::" "::=" "=:=" "===" "==>" "=!=" "=>>" "=<<" "=/=" "!=="
-		       "!!." ">=>" ">>=" ">>>" ">>-" ">->" "->>" "-->" "---" "-<<"
-		       "<~~" "<~>" "<*>" "<||" "<|>" "<$>" "<==" "<=>" "<=<" "<->"
-		       "<--" "<-<" "<<=" "<<-" "<<<" "<+>" "</>" "###" "#_(" "..<"
-		       "..." "+++" "/==" "///" "_|_" "www" "&&" "^=" "~~" "~@" "~="
-		       "~>" "~-" "**" "*>" "*/" "||" "|}" "|]" "|=" "|>" "|-" "{|"
-		       "[|" "]#" "::" ":=" ":>" ":<" "$>" "==" "=>" "!=" "!!" ">:"
-		       ">=" ">>" ">-" "-~" "-|" "->" "--" "-<" "<~" "<*" "<|" "<:"
-		       "<$" "<=" "<>" "<-" "<<" "<+" "</" "#{" "#[" "#:" "#=" "#!"
-		       "##" "#(" "#?" "#_" "%%" ".=" ".-" ".." ".?" "+>" "++" "?:"
-		       "?=" "?." "??" ";;" "/*" "/=" "/>" "//" "__" "~~" "(*" "*)"
-		       "\\\\" "://"))
+** Completion Annotations (Marginalia)
 
-(use-package ligature
-  :config
-  (ligature-set-ligatures 'prog-mode ligature-def)
-  (global-ligature-mode t))
-#+end_src
+#+BEGIN_SRC emacs-lisp
+  (use-package marginalia
+    :init
+    (marginalia-mode 1))
+#+END_SRC
 
-** Icons & Emojis
+** In-Buffer Completion (Corfu)
 
-Add nerd-icons and apple emoji font
+#+BEGIN_SRC emacs-lisp
+  (use-package corfu
+    :init
+    (global-corfu-mode)
+    :custom
+    (corfu-auto t)
+    (corfu-auto-delay 0.1)
+    (corfu-auto-prefix 1)
+    (corfu-cycle t)
+    (corfu-preselect 'prompt))
+#+END_SRC
 
-#+begin_src emacs-lisp
-(use-package nerd-icons)
+** Keybinding Discovery (which-key)
 
-(use-package emojify
-  :config
-  (when (member "Apple Color Emoji" (font-family-list))
-    (set-fontset-font
-     t 'symbol (font-spec :family "Apple Color Emoji") nil 'prepend)))
-#+end_src
+#+BEGIN_SRC emacs-lisp
+  (use-package which-key
+    :defer 1
+    :config
+    (which-key-mode)
+    (setq which-key-idle-delay 0.5
+          which-key-seperator " -> "
+          which-key-prefix-prefix "+"))
+#+END_SRC
 
-** Color Theme
+* Navigation (Packages)
 
-For the dark theme we install the Nord theme
+High-level navigation and search commands built on the completion stack.
 
-#+begin_src emacs-lisp
-(use-package doom-themes
-  :config
-  (setq doom-themes-enable-bold t
-	doom-themes-enable-italic t))
-#+end_src
+** Consult
 
-and for the light theme we use South
+#+BEGIN_SRC emacs-lisp
+  (use-package consult
+    :bind (("C-x b" . consult-buffer)
+           ("C-s"   . consult-line)
+           ("M-y"   . consult-yank-pop)
+           ("M-g g" . consult-goto-line)
+           ("M-g i" . consult-imenu)
+           ("M-g r" . consult-ripgrep)))
+#+END_SRC
 
-#+begin_src emacs-lisp
-(use-package south-theme
-  :straight (:host github :repo "SophieBosio/south" :branch "main"))
-#+end_src
+* Programming
 
-Then we define the default themes
+#+BEGIN_SRC emacs-lisp
+  (use-package eglot
+    :straight t
+    :hook ((c-mode c++-mode) . eglot-ensure)
+    :config
+    (define-prefix-command 'my/eglot-map)
+    (define-key eglot-mode-map (kbd "C-c e") 'my/eglot-map)
 
-#+begin_src emacs-lisp
-(setq custom-safe-themes t)
+    (define-key my/eglot-map (kbd "d") #'eglot-find-definition)
+    (define-key my/eglot-map (kbd "r") #'eglot-rename)
+    (define-key my/eglot-map (kbd "f") #'eglot-find-references)
+    (define-key my/eglot-map (kbd "h") #'eglot-hover)
+    (define-key my/eglot-map (kbd "=") #'eglot-format-buffer))
+#+END_SRC
 
-(defvar my/default-dark-theme 'doom-nord)
-(defvar my/default-light-theme 'south)
+* Version Control
+* Org Mode
+* UI and Appearance
 
-(defvar my/default-dark-accent-colour "SkyBlue4")
-(defvar my/default-light-accent-colour "#D9EDFC")
+Visual presentation of Emacs, including fonts, colors, and rendering features.
+This section affects appearance only, not behavior.
 
-(load-theme my/default-dark-theme t)
-#+end_src
+** Fonts
 
-Then we use `auto-dark-emacs` for switching themes with the system theme.
+#+BEGIN_SRC emacs-lisp
+  (set-face-attribute 'default nil
+                      :family "Iosevka"
+                      :height 130
+                      :weight 'regular)
+#+END_SRC
 
-#+begin_src emacs-lisp
-(use-package autothemer
-  :defer t)
+** Ligatures
 
-(use-package auto-dark
-  :ensure t
-  :hook ((auto-dark-dark-mode
-	  .
-	  (lambda ()
-	    (interactive)
-	    (progn
-	      (custom-set-faces
-	       `(eval-sexp-fu-flash
-		 ((t (:background
-		      ,my/default-dark-accent-colour)))))
-	      `(load-theme ,my/default-dark-theme t))))
-	 (auto-dark-light-mode
-	   .
-	   (lambda ()
-	     (interactive)
-	     (progn
-	       (custom-set-faces
-		`(eval-sexp-fu-flash
-		  ((t (:background
-		       ,my/default-light-accent-colour)))))
-	       `(load-theme ,my/default-light-theme t)))))
-  :custom
-  (auto-dark-themes `((,my/default-dark-theme) (,my/default-light-theme)))
-  (auto-dark-polling-interval-seconds 5)
-  (auto-dark-allow-osascript t)
-  :init (auto-dark-mode t))
-#+end_src
+#+BEGIN_SRC emacs-lisp
+  (dolist (char/ligature-re
+           `((?-  . ,(rx (or (or "-->" "-<<" "->>" "-|" "-~" "-<" "->")
+                             (+ "-"))))
+             (?/  . ,(rx (or (or "/==" "/=" "/>" "/**" "/*")
+                             (+ "/"))))
+             (?*  . ,(rx (or (or "*>" "*/")
+                             (+ "*"))))
+             (?<  . ,(rx (or (or "<<=" "<<-" "<|||" "<==>" "<!--" "<=>" "<||" "<|>"
+                                 "<-<" "<==" "<=<" "<-|" "<~>" "<=|" "<~~" "<$>"
+                                 "<+>" "</>" "<*>" "<->" "<=" "<|" "<:" "<>"
+                                 "<$" "<-" "<~" "<+" "</" "<*")
+                             (+ "<"))))
+             (?:  . ,(rx (or (or ":?>" "::=" ":>" ":<" ":?" ":=")
+                             (+ ":"))))
+             (?=  . ,(rx (or (or "=>>" "==>" "=/=" "=!=" "=>" "=:=")
+                             (+ "="))))
+             (?!  . ,(rx (or (or "!==" "!=")
+                             (+ "!"))))
+             (?>  . ,(rx (or (or ">>-" ">>=" ">=>" ">]" ">:" ">-" ">=")
+                             (+ ">"))))
+             (?&  . ,(rx (+ "&")))
+             (?|  . ,(rx (or (or "|->" "|||>" "||>" "|=>" "||-" "||=" "|-" "|>"
+                                 "|]" "|}" "|=")
+                             (+ "|"))))
+             (?.  . ,(rx (or (or ".?" ".=" ".-" "..<")
+                             (+ "."))))
+             (?+  . ,(rx (or "+>"
+                             (+ "+"))))
+             (?\[ . ,(rx (or "[<" "[|")))
+             (?\{ . ,(rx "{|"))
+             (?\? . ,(rx (or (or "?." "?=" "?:")
+                             (+ "?"))))
+             (?#  . ,(rx (or (or "#_(" "#[" "#{" "#=" "#!" "#:" "#_" "#?" "#(")
+                             (+ "#"))))
+             (?\; . ,(rx (+ ";")))
+             (?_  . ,(rx (or "_|_" "__")))
+             (?~  . ,(rx (or "~~>" "~~" "~>" "~-" "~@")))
+             (?$  . ,(rx "$>"))
+             (?^  . ,(rx "^="))
+             (?\] . ,(rx "]#"))))
+    (let ((char (car char/ligature-re))
+          (ligature-re (cdr char/ligature-re)))
+      (set-char-table-range composition-function-table char
+                            `([,ligature-re 0 font-shape-gstring]))))
+#+END_SRC
+
+** Theme
+
+#+BEGIN_SRC emacs-lisp
+  (use-package doom-themes
+    :straight (:build t)
+    :config
+    (defvar my/dark-theme 'doom-nord)
+    (defvar my/light-theme 'doom-nord-light)
+
+    (defun my/gnome-dark-mode-p ()
+      (when (eq system-type 'gnu/linux)
+        (let ((res (string-trim
+                    (shell-command-to-string
+                     "gsettings get org.gnome.desktop.interface color-scheme"))))
+          (string= res "'prefer-dark'"))))
+
+    (defun my/apply-system-theme ()
+      (mapc #'disable-theme custom-enabled-themes)
+      (load-theme (if (my/gnome-dark-mode-p) my/dark-theme my/light-theme) t))
+
+    (add-hook 'after-init-hook #'my/apply-system-theme)
+
+    (doom-themes-visual-bell-config)
+    (doom-themes-org-config))
+#+END_SRC
+
+** Frame Padding and Fringe
+
+#+BEGIN_SRC emacs-lisp
+  (when (display-graphic-p)
+    (add-to-list 'default-frame-alist '(internal-border-width . 20))
+    (set-fringe-style '(10 . 10)))
+#+END_SRC
+
+** Icons
+
+#+BEGIN_SRC emacs-lisp
+  (use-package all-the-icons
+    :straight t
+    :if (display-graphic-p))
+
+  (when (display-graphic-p)
+    (unless (member "all-the-icons" (font-family-list))
+      (all-the-icons-install-fonts t)))
+
+  (use-package all-the-icons-dired
+    :straight t
+    :if (display-graphic-p)
+    :hook (dired-mode . all-the-icons-dired-mode))
+
+  (use-package all-the-icons-ibuffer
+    :straight t
+    :if (display-graphic-p)
+    :hook (ibuffer-mode . all-the-icons-ibuffer-mode))
+
+  (defun my/vc-branch-icon ()
+    (when-let ((vc vc-mode))
+      (concat " " (all-the-icons-octicon "git-branch" :height 1.0)
+              " " (substring vc 5))))
+#+END_SRC
 
 ** Mode Line
 
-Show the column number in mode line
-
-#+begin_src emacs-lisp
-(column-number-mode t)
-#+end_src
-
-Custom Mode Line
-
-#+begin_src emacs-lisp
-(defvar lsp-modeline--code-actions-string nil)
-
-(setq-default mode-line-format
-	      '("%e"
-		(:propertize " " display (raise +0.4)) ;; Top padding
-		(:propertize " " display (raise -0.4)) ;; Bottom padding
-
-		(:propertize "λ " face font-lock-comment-face)
-		mode-line-frame-identification
-		mode-line-buffer-identification
-
-		;; Version control info
-		(:eval (when-let (vc vc-mode)
-			 (list (propertize "   " 'face 'font-lock-comment-face)
-			       (propertize (truncate-string-to-width
-					    (substring vc 5) 50=
-					    'face 'font-lock-comment-face)))))
-
-		;; Add space to align to the right
-		(:eval (propertize
-			" " 'display
-			`((space :align-to
-				 (- (+ right right-fringe right-margin)
-				    ,(+ 3
-					(string-width (or lsp-modeline--code-actions-string ""))
-					(string-width "%4l:3%c")))))))
-
-		;; LSP code actions
-		(:eval (or lsp-modeline--code-actions-string ""))
-
-		;; Line and column numbers
-		(:propertize "%4l:%c" face mode-line-buffer-id)))
-#+end_src
-
-** Text Display Modes
-
-Olivetti is a minor mode for centering text.
-
-#+begin_src emacs-lisp
-(use-package olivetti
-  :defer t
-  :config
-  (setq olivetti-style t))
-#+end_src
-
-Adaptive Wrap to visually wrap lines.
-
-#+begin_src emacs-lisp
-(use-package adaptive-wrap
-  :defer t
-  :hook (visual-line-mode . adaptive-wrap-prefix-mode))
-#+end_src
-
-Focus dims surrounding text.
-
-#+begin_src emacs-lisp
-(use-package focus
-  :defer t)
-#+end_src 
-
-* Buffers & Navigation
-
-Then tidy it up by organising the buffers by major mode
-
-#+begin_src emacs-lisp
-(setq ibuffer-saved-filter-groups
-      '(("default"
-	 ("Programming" (predicate . (derived-mode-p 'prog-mode)))
-	 ("Org"         (mode . org-mode)))))
-
-(add-hook 'ibuffer-mode-hook
-	  (lambda ()
-	    (ibuffer-switch-to-saved-filter-groups "default")))
-#+end_src
-
-Finally, remove some columns.
-
-#+begin_src emacs-lisp
-(setq ibuffer-formats
-      '((mark " " (name 60 -1 :left))))
-#+end_src
-
-* Completion
-For completing-read we use Vertico
-
-#+begin_src emacs-lisp
-(defun my/take-me-home ()
-  (interactive)
-  (if (looking-back "/" nil)
-      (progn (call-interactively 'delete-minibuffer-contents) (insert "~/"))
-    (call-interactively 'self-insert-command)))
-
-(use-package vertico
-  :defer t
-  :bind (:map vertico-map ("~" . my/take-me-home))
-  :config
-  (vertico-mode)
-  (vertico-multiform-mode)
-  (setq read-extended-command-predicate 'command-completion-default-include-p
-	vertico-count 32
-	read-file-name-completion-ignore-case t
-	read-buffer-completion-ignore-case t
-	completion-ignore-case t))
-#+end_src
-
-The using vertico-posframe it appears in a small child frame
-
-#+begin_src emacs-lisp
-(use-package vertico-posframe
-  :init
-  (setq vertico-posframe-parameters '((left-fringe . 12)
-				      (right-fringe . 12)
-				      (undecorated . nil)))
-  :config
-  (vertico-posframe-mode 1)
-  (setq vertico-posframe-width 96
-	vertico-posframe-height vertico-count
-	vertico-multiform-commands '((consult-line (:not posframe))
-				     (consult-ripgrep (:not posframe)))))
-#+end_src
-
-Corfu provides text completion
-
-#+begin_src emacs-lisp
-(use-package corfu
-  :defer t
-  :custom
-  (corfu-auto t)
-  (corfu-auto-delay 0.1)
-  (corfu-auto-prefix 1)
-  (corfu-cycle t)
-  (corfu-quit-no-match 'seperator)
-  :bind (:map corfu-map
-	      (" " . corfu-insert-seperator))
-  :init
-  (global-corfu-mode))
-
-(setq tab-always-indent 'complete)
-#+end_src
-
-Orderless for fuzzy completion
-
 #+BEGIN_SRC emacs-lisp
-(use-package orderless
-  :ensure t
-  :config
-  (setq completion-styles '(orderless basic partial-completion)
-	completion-category-overrides '((file (styles basic partial-completion)))))
+  (column-number-mode t)
+
+  (defvar my/lsp-code-actions-string "")
+
+  (setq-default mode-line-format
+                '("%e"
+                  ;; Top and bottom padding
+                  (:propertize " " display (raise +0.4))
+                  (:propertize " " display (raise -0.4))
+
+                  ;; Lambda symbol
+                  (:propertize "λ " face font-lock-comment-face)
+
+                  ;; Buffer name
+                  mode-line-buffer-identification
+
+                  ;; Git branch (VC)
+                  (:eval (my/vc-branch-icon))
+
+                  ;; Flexible space to push line/column to the right
+                  (:eval (propertize
+                          " "
+                          'display
+                          `((space :align-to
+                                   (- (+ right right-fringe right-margin)
+                                      ,(+ 3
+                                          (string-width (or my/lsp-code-actions-string ""))
+                                          (string-width "%4l:%c")))))))
+
+                  ;; LSP code actions placeholder
+                  (:eval (or my/lsp-code-actions-string ""))
+
+                  ;; Line and column numbers
+                  (:propertize "%4l:%c" face mode-line-buffer-id)))
 #+END_SRC
 
-* Search
-First we install some search utilities
+** Parenthesis
 
 #+BEGIN_SRC emacs-lisp
-(use-package ripgrep
-  :defer t)
-
-(use-package rg
-  :defer t)
-
-(use-package ag
-  :defer t)
-
-(use-package wgrep
-  :defer t)
+  (use-package rainbow-delimiters
+    :hook
+    ((prog-mode . rainbow-delimiters-mode)
+     (org-src-mode . rainbow-delimiters-mode)))
 #+END_SRC
 
-Consult provides search, navigation, and completion functionality.
-
-#+BEGIN_SRC emacs-lisp
-(use-package consult
-  :bind (
-	 ("C-s"     . consult-line)
-	 ("C-M-s"   . consult-ripgrep)
-	 ("C-x b"   . consult-buffer)
-	 ("C-x C-b" . consult-buffer)
-	 ("M-g g"   . consult-goto-line)
-	 ("M-g t"   . consult-imenu)
-	 ("M-g a"   . consult-imenu-multi)))
-#+END_SRC
-
-Use imenu-list for better imenu
-
-#+BEGIN_SRC emacs-lisp
-(use-package imenu-list
-  :defer t
-  :bind (("M-g i" . imenu-list-smart-toggle)))
-#+END_SRC
-
-Use Marginalia for annotiations in the minibuffer
-
-#+BEGIN_SRC emacs-lisp
-(use-package marginalia
-  :init
-  (marginalia-mode 1))
-#+END_SRC
-
-* Org
-
-Org is used for organising notes.
-
-** Visuals
-
-#+begin_src emacs-lisp
-(use-package org
-  ;; Center text
-  :hook (org-mode . olivetti-mode)
-  :config
-  ;; Set the sizes and fonts for the various headings
-  (custom-set-faces
-   '(org-document-title ((t (:height 1.6))))
-   '(outline-1          ((t (:height 1.25))))
-   '(outline-2          ((t (:height 1.2))))
-   '(outline-3          ((t (:height 1.2))))
-   '(outline-4          ((t (:height 1.2))))
-   '(outline-5          ((t (:height 1.2))))
-   '(outline-6          ((t (:height 1.2))))
-   '(outline-7          ((t (:height 1.2))))
-   '(outline-8          ((t (:height 1.2))))
-   '(outline-9          ((t (:height 1.2)))))
-  ;; Turn off indent mode globally
-  (org-indent-mode -1)
-  ;; Preview LaTeX fragments by default
-  (setq org-startup-with-latex-preview t)
-  ;; Increase the size of LaTeX previews
-  (plist-put org-format-latex-options :scale 1.35)
-  ;; Show all the headings
-  (setq org-startup-folded 'content)
-  ;; Declutter by adapting indentations and hiding leading starts
-  (setq org-hide-leading-stars t
-	org-pretty-entities t
-	org-ellipsis "  .")
-  ;; For source code blocks make it behave better
-  (setq org-src-fontify-natively t
-	org-src-tab-acts-natively t
-	org-edit-src-content-indentation 0)
-  ;; Better headers and TODO's
-  (setq org-log-done t
-	org-auto-align-tags t
-	org-tags-column -80
-	org-fold-catch-invisible-edits 'show-and-error
-	org-special-ctrl-a/e t
-	org-insert-heading-respect-content t))
-#+end_src
-
-Hide Emphasis Marker
-
-#+begin_src emacs-lisp
-(use-package org-appear
-  :commands (org-appear-mode)
-  :hook     (org-mode . org-appear-mode)
-  :config
-  (setq org-hide-emphasis-markers t
-	org-appear-autoemphasis   t
-	org-appear-autolinks      t
-	org-appear-autosubmarkers t))
-#+end_src
-
-Show inline images by default
-
-#+begin_src emacs-lisp
-(setq org-startup-with-inline-images t)
-#+end_src
-
-LaTeX Fragtog is like org-appear, but for LaTeX fragments
-
-#+begin_src emacs-lisp
-(use-package org-fragtog
-  :after org
-  :hook (org-mode . org-fragtog-mode))
-#+end_src
-
-Nicer Bullets and Checkboxes
-
-#+begin_src emacs-lisp
-(use-package org-superstar
-  :after org
-  :hook (org-mode . org-superstar-mode))
-#+end_src
-
-SVG Elements replaces keywords with nice SVG graphics.
-
-#+begin_src emacs-lisp
-(defun my/svg-tag-maybe (fn &rest args)
-  "Call fn with args unless point is inside an org src block"
-  (when (not (org-in-src-block-p))
-    (apply fn args)))
-
-(use-package svg-tag-mode
-  :after org
-  :config
-  (defconst date-re "[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}")
-  (defconst time-re "[0-9]\\{2\\}:[0-9]\\{2\\}")
-  (defconst day-re "[A-Za-z]\\{3\\}")
-  (defconst day-time-re (format "\\(%s\\)? ?\\(%s\\)?" day-re time-re))
-
-  (defun svg-progress-percent (value)
-    (svg-image (svg-lib-concat
-		(svg-lib-progress-bar (/ (string-to-number value) 100.0)
-				      nil :margin 0 :stroke 2 :radius 3 :padding 2 :width 11)
-		(svg-lib-tag (concat value "%")
-			     nil :stroke 0 :margin 0)) :ascent 'center))
-
-  (defun svg-progress-count (value)
-    (let* ((seq (mapcar #'string-to-number (split-string value "/")))
-	   (count (float (car seq)))
-	   (total (float (cadr seq))))
-      (svg-image (svg-lib-concat
-		  (svg-lib-progress-bar (/ count total) nil
-					:margin 0 :stroke 2 :radius 3 :padding 2 :width 11)
-		  (svg-lib-tag value nil
-			       :stroke 0 :margin 0)) :ascent 'center)))
-
-  (setq svg-tag-tags
-	`(;; Org tags
-	  (":\\([A-Za-z0-9]+\\)" . ((lambda (tag) (my/svg-tag-maybe
-						   #'svg-tag-make tag))))
-	  (":\\([A-Za-z0-9]+[ \-]\\)" . ((lambda (tag) (my/svg-tag-maybe tag))))
-
-	  ;; Task priority
-	  ("\\[#[A-Z]\\]" . ((lambda (tag)
-			       (my/svg-tag-maybe
-			       #'svg-tag-make tag
-			       :face 'org-priority :beg 2 :end -1 :margin 0))))
-
-	  ;; Progress
-	  ("\\(\\[[0-9]\\{1,3\\}%\\]\\)" . ((lambda (tag)
-					      (my/svg-tag-maybe
-					      #'svg-progress-percent (substring tag 1 -2)))))
-	  ("\\(\\[[0-9]+/[0-9]+\\]\\)" . ((lambda (tag)
-					    (my/svg-tag-maybe
-					    #'svg-progress-count (substring tag 1 -1)))))
-
-	  ;; TODO / DONE
-	  ("TODO" . ((lambda (tag)
-		       (my/svg-tag-maybe
-		       #'svg-tag-make "TODO"
-		       :face 'org-todo :inverse t :margin 0))))
-	  ("DONE" . ((lambda (tag)
-		       (my/svg-tag-maybe
-		       #'svg-tag-make "DONE"
-		       :face 'org-done :margin 0))))
-
-	  ;; Citation of the form [cite:@Knuth:1984]
-	  ("\\(\\[cite:@[A-Za-z]+:\\)" . ((lambda (tag)
-					    (my/svg-tag-maybe
-					    #'svg-tag-make tag
-					    :inverse t :beg 7 :end -1 :crop-right t))))
-	  ("\\[cite:@[A-Za-z]+:\\([0-9]+\\]\\)" . (lambda (tag)
-						    (my/svg-tag-maybe
-						    #'svg-tag-make tag
-						    :end -1 :crop-left t)))
-
-	  ;; Active date
-	  (,(format "\\(<%s>\\)" date-re) .
-	   ((lambda (tag)
-	      (my/svg-tag-maybe
-	      #'svg-tag-make tag
-	      :beg 1 :end -1 :margin 0))))
-	  (,(format "\\(<%s \\)%s>" date-re day-time-re) .
-	   ((lambda (tag)
-	      (my/svg-tag-maybe
-	      #'svg-tag-make tag
-	      :beg 1 :inverse nil :crop-right t :margin 0))))
-	  (,(format "<%s \\(%s>\\)" date-re day-time-re) .
-	   ((lambda (tag)
-	      (my/svg-tag-maybe
-	      #'svg-tag-make tag
-	      :end -1 :inverse t :crop-left t :margin 0))))
-
-	  ;; Inactive date
-	  (,(format "\\(\\[%s\\]\\)" date-re) .
-          ((lambda (tag)
-	     (my/svg-tag-maybe
-             #'svg-tag-make tag
-	     :beg 1 :end -1 :margin 0 :face 'org-date))))
-         (,(format "\\(\\[%s \\)%s\\]" date-re day-time-re) .
-          ((lambda (tag)
-	     (my/svg-tag-maybe
-             #'svg-tag-make tag
-	     :beg 1 :inverse nil :crop-right t :margin 0 :face 'org-date))))
-	 (,(format "\\[%s \\(%s\\]\\)" date-re day-time-re) .
-	  ((lambda (tag)
-	     (my/svg-tag-maybe
-	     #'svg-tag-make tag
-	     :end -1 :inverse t :crop-left t :margin 0 :face 'org-date)))))))
-
-(add-hook 'org-mode-hook 'svg-tag-mode)
-#+end_src
-
-Custom function to prettify tag and other elements
-
-#+begin_src emacs-lisp
-(defun my/org-prettify-symbols-compose-predicate (start end _match)
-  "Return non-nil if symbol between START and END should be prettified. Disable prettification inside Org src blocks."
-  (not (org-in-src-block-p start)))
-
-(defun my/prettify-symbols-setup ()
-  (interactive)
-  (setq-local prettify-symbols-compose-predicate
-	      #'my/org-prettify-symbols-compose-predicate)
-  (setq prettify-symbols-alist
-	(mapcan (lambda (x)
-		  (when (and (consp x) (stringp (car x)))
-		    (list x (cons (upcase (car x)) (cdr x)))))
-		'(; Greek symbols
-		  ("lambda" . ?λ)
-		  ("delta"  . ?Δ)
-		  ("gamma"  . ?Γ)
-		  ("phi"    . ?φ)
-		  ("psi"    . ?ψ)
-					; Org headers
-		  ("#+title:"  . ? )
-		  ("#+author:" . ? )
-                  ("#+date:"   . ? )                
-					; Checkboxes
-		  ("[ ]" . ?)
-		  ("[X]" . ?)
-		  ("[-]" . ?)
-					; Misc
-                  ("->" . ?➜)
-					; Blocks
-		  ("#+begin_src"   . ?) ; 
-		  ("#+end_src"     . ?)
-		  ("#+begin_QUOTE" . ?‟)
-		  ("#+end_QUOTE"   . ?”)
-					; Drawers
-		  (":properties:" . ?)
-					; Agenda scheduling
-		  ("SCHEDULED:"   . ?🕘)
-		  ("DEADLINE:"    . ?⏰)
-					; Agenda tags  
-		  (":@projects:"  . ?☕)
-		  (":work:"       . ?🚀)
-		  (":@inbox:"     . ?✉)
-		  (":goal:"       . ?🎯)
-		  (":task:"       . ?📋)
-		  (":@thesis:"    . ?📝)
-		  (":thesis:"     . ?📝)
-		  (":emacs:"      . ?)
-		  (":learn:"      . ?🌱)
-		  (":code:"       . ?💻)
-		  (":fix:"        . ?🛠)
-		  (":bug:"        . ?🚩)
-		  (":read:"       . ?📚)
-					; Roam tags
-		  ("#+filetags:"  . ?📎)
-		  (":wip:"        . ?🏗)
-		  (":ct:"         . ?➡)    ; Category Theory
-                  (":verb:"       . ?🌐) ; HTTP Requests in Org mode
-                  )))
-  (prettify-symbols-mode 1))
-
-(add-hook 'org-mode-hook        #'my/prettify-symbols-setup)
-(add-hook 'org-agenda-mode-hook #'my/prettify-symbols-setup)
-#+end_src
-* Programming
-
-This section configure language tooling for programming modes.
-
-** C/C++
-We use Eglot together with clangd.
-
-#+BEGIN_SRC emacs-lisp
-(use-package eglot
-  :defer t
-  :hook ((c-mode c++-mode) . eglot-ensure))
-#+END_SRC
-
-Register `clangd` as language server for C/C++.
-
-#+BEGIN_SRC emacs-lisp
-(with-eval-after-load 'eglot
-  (add-to-list 'eglot-server-programs
-               '((c-mode c++-mode) . ("clangd"))))
-#+END_SRC
-
-Tune flymake to feel responsive
-
-#+BEGIN_SRC emacs-lisp
-(setq flymake-no-changes-timeout 0.5)
-#+END_SRC
-
-Keybinding to show all diagnostics
-
-#+BEGIN_SRC emacs-lisp
-(with-eval-after-load 'eglot
-  (define-key eglot-mode-map (kbd "C-c ! !")
-              #'flymake-show-buffer-diagnostics))
-#+END_SRC
-
-Common LSP actions
-
-#+BEGIN_SRC emacs-lisp
-(with-eval-after-load 'eglot
-  (define-key eglot-mode-map (kbd "C-c r") #'eglot-rename)
-  (define-key eglot-mode-map (kbd "C-c a") #'eglot-code-actions)
-  (define-key eglot-mode-map (kbd "C-c d") #'eglot-find-definitions)
-  (define-key eglot-mode-map (kbd "C-c i") #'eglot-find-references))
-#+END_SRC
-
-Only format on demand (`M-x eglot-format-buffer`) never automatically.
-
-#+BEGIN_SRC emacs-lisp
-(with-eval-after-load 'eglot
-  (setq eglot-confirm-server-initiated-edits nil
-        eglot-autoshutdown t))
-#+END_SRC
+* OS Integration
+* Utilities
+* Experiments
