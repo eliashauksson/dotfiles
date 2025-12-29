@@ -12,6 +12,7 @@
   ;; Disable default package management
   (setq package-enable-at-startup nil)
 
+
   ;; Bootstrap straight.el
   (defvar bootstrap-version)
   (let ((bootstrap-file
@@ -156,6 +157,8 @@ Emit a concise startup summary in the minibuffer for perfomance regression track
 
   (blink-cursor-mode -1)
   (setq-default cursor-type 'bar)
+
+  (global-hl-line-mode 1)
 #+END_SRC
 
 ** Disable save and lockfiles
@@ -350,7 +353,7 @@ High-level navigation and search commands built on the completion stack.
 
 * Programming
 
-#+BEGIN_SRC emacs-lisp
+ #+BEGIN_SRC emacs-lisp
   (use-package eglot
     :straight t
     :hook ((c-mode c++-mode) . eglot-ensure)
@@ -358,11 +361,22 @@ High-level navigation and search commands built on the completion stack.
     (define-prefix-command 'my/eglot-map)
     (define-key eglot-mode-map (kbd "C-c e") 'my/eglot-map)
 
-    (define-key my/eglot-map (kbd "d") #'eglot-find-definition)
+    (define-key my/eglot-map (kbd "d") #'xref-find-definitions)
+    (define-key my/eglot-map (kbd "f") #'xref-find-references)
+
     (define-key my/eglot-map (kbd "r") #'eglot-rename)
-    (define-key my/eglot-map (kbd "f") #'eglot-find-references)
     (define-key my/eglot-map (kbd "h") #'eglot-hover)
-    (define-key my/eglot-map (kbd "=") #'eglot-format-buffer))
+    (define-key my/eglot-map (kbd "=") #'eglot-format-buffer)
+
+    (add-to-list 'eglot-server-programs
+                 '((c-mode c++-mode)
+                   . ("clangd"
+                      "--query-driver=/usr/bin/c++,/usr/bin/g++"))))
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+  (use-package glsl-mode
+    :ensure t)
 #+END_SRC
 
 * Version Control
@@ -494,39 +508,96 @@ This section affects appearance only, not behavior.
 ** Mode Line
 
 #+BEGIN_SRC emacs-lisp
+
+  ;; Cache for Flymake mode line
+  (defvar-local my/flymake-mode-line-cache nil
+    "Cached Flymake mode line string.")
+
+  (defvar-local my/flymake-last-diag-count nil
+    "Last diagnostic count for cache invalidation.")
+
+  (defun my/flymake-mode-line ()
+    "Return a cached string showing Flymake diagnostics and backend."
+    (when (bound-and-true-p flymake-mode)
+      (let ((current-count (length (flymake-diagnostics))))
+        (unless (equal current-count my/flymake-last-diag-count)
+          (setq my/flymake-last-diag-count current-count)
+          (setq my/flymake-mode-line-cache nil)))
+      (or my/flymake-mode-line-cache
+          (my/flymake-compute-mode-line))))
+
+  (defun my/flymake-compute-mode-line ()
+    "Compute Flymake mode line string."
+    (let ((error-count 0)
+          (warning-count 0)
+          (note-count 0)
+          (backend-name nil)
+          (diags (flymake-diagnostics)))
+
+      ;; Count diagnostics
+      (dolist (diag diags)
+        (let ((type (flymake-diagnostic-type diag)))
+          (cond
+           ((memq type '(eglot-error :error))
+            (setq error-count (1+ error-count)))
+           ((memq type '(eglot-warning :warning))
+            (setq warning-count (1+ warning-count)))
+           ((memq type '(eglot-note :note))
+            (setq note-count (1+ note-count))))))
+
+      ;; Get backend name
+      (when (and (featurep 'eglot) (eglot-current-server))
+        (condition-case nil
+            (let* ((server (eglot-current-server))
+                   (proc (jsonrpc--process server))
+                   (cmd (when proc (process-command proc))))
+              (when (and cmd (car cmd))
+                (setq backend-name (file-name-nondirectory (car cmd)))))
+          (error
+           (setq backend-name "lsp"))))
+
+      ;; Build string
+      (setq my/flymake-mode-line-cache
+            (concat
+             (when backend-name
+               (propertize (format " [%s]" backend-name) 'face 'font-lock-comment-face))
+             (cond
+              ((> error-count 0)
+               (concat
+                (propertize (format " ✖%d" error-count) 'face 'error)
+                (when (> warning-count 0)
+                  (propertize (format " ⚠%d" warning-count) 'face 'warning))))
+              ((> warning-count 0)
+               (propertize (format " ⚠%d" warning-count) 'face 'warning))
+              (backend-name
+               (propertize " ✓" 'face 'success)))))
+
+      my/flymake-mode-line-cache))
+
+  ;; Hook to invalidate cache when Flymake updates
+  (defun my/flymake-invalidate-cache (&rest _)
+    "Invalidate Flymake mode line cache."
+    (setq my/flymake-mode-line-cache nil)
+    (force-mode-line-update))
+
+  (add-hook 'flymake-after-diagnostics-hook
+            #'my/flymake-invalidate-cache)
+
   (column-number-mode t)
-
-  (defvar my/lsp-code-actions-string "")
-
   (setq-default mode-line-format
                 '("%e"
-                  ;; Top and bottom padding
                   (:propertize " " display (raise +0.4))
                   (:propertize " " display (raise -0.4))
-
-                  ;; Lambda symbol
                   (:propertize "λ " face font-lock-comment-face)
-
-                  ;; Buffer name
                   mode-line-buffer-identification
-
-                  ;; Git branch (VC)
                   (:eval (my/vc-branch-icon))
-
-                  ;; Flexible space to push line/column to the right
+                  (:eval (my/flymake-mode-line))
                   (:eval (propertize
                           " "
                           'display
                           `((space :align-to
                                    (- (+ right right-fringe right-margin)
-                                      ,(+ 3
-                                          (string-width (or my/lsp-code-actions-string ""))
-                                          (string-width "%4l:%c")))))))
-
-                  ;; LSP code actions placeholder
-                  (:eval (or my/lsp-code-actions-string ""))
-
-                  ;; Line and column numbers
+                                      ,(+ 3 (string-width "%4l:%c")))))))
                   (:propertize "%4l:%c" face mode-line-buffer-id)))
 #+END_SRC
 
